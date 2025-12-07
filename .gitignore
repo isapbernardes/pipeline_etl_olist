@@ -1,0 +1,7 @@
+# Ignorar dados brutos (pesados e sujos)
+dados_brutos/
+*.csv
+
+# Ignorar sistema
+__pycache__/
+.env
