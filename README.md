@@ -72,6 +72,7 @@ Durante o desenvolvimento, foram aplicados conceitos fundamentais de Engenharia 
 
 ## 📞 Contato
 
-**Isadora** 🔗 [LinkedIn](https://www.linkedin.com/in/isadorapbernards/)  
-📧 [isadora.bernardes74@hotmail.com](mailto:isadora.bernardes74@hotmail.com)
+**Isadora Bernardes** 🔗 [LinkedIn](https://www.linkedin.com/in/isadorapbernards/)  
+📧 [isadora.bernardes74@hotmail.com](isadora.bernardes74@hotmail.com)
+📞 (35) 99867-9633
 
