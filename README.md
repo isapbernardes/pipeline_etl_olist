@@ -90,7 +90,7 @@ Valida os dados processados com checks por tabela:
 - **Products:** Categorias nulas, integridade de dados
 - **Geolocation:** Coordenadas válidas, limites geográficos
 
-Saída: Relatório de checks em `auditoria_qualidade.log`
+Saída: Relatório de checks em `auditoria_olist.log`
 
 ---
 
