@@ -56,12 +56,12 @@ pip install pandas openpyxl
 
 1. **Pipeline de limpeza:**
 ```bash
-python main_pipeline.py
+python pipeline.py
 ```
 
 2. **Auditoria de qualidade:**
 ```bash
-python auditoria_qualidade.py
+python auditoria_olist.py
 ```
 
 ---
