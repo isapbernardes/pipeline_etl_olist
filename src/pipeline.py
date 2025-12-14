@@ -1,14 +1,36 @@
 import pandas as pd
 import os
 import sys
+import logging
 
-#  CONFIGURAÇÕES DE CAMINHO
 
-PASTA_ORIGEM = r"C:\Users\isado\OneDrive\Área de Trabalho\archives\dados_brutos"
+# CONFIGURAÇÃO DE LOGGING
 
-# Arquivos LIMPOS
+def configurar_logging():
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-PASTA_DESTINO = r"C:\Users\isado\OneDrive\Área de Trabalho\archives\Trusted"
+    # Handler Arquivo
+    file_handler = logging.FileHandler('pipeline_olist.log', mode='w')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Handler Tela
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+
+    return logger
+
+logger = configurar_logging()
+
+
+# CONFIGURAÇÕES DE CAMINHO
+
+PASTA_ORIGEM = r"C:\Users\isado\OneDrive\Área de Trabalho\projeto_etl\dados_brutos"
+PASTA_DESTINO = r"C:\Users\isado\OneDrive\Área de Trabalho\projeto_etl\Trusted"
 
 
 # 1. CLASSE BASE 
@@ -21,49 +43,48 @@ class OlistBaseETL:
         self.df = None
 
     def extract(self):
-        """Lê o arquivo da pasta de origem."""
         try:
-            print(f"[Lendo] {self.nome_arquivo}...")
+            logger.info(f"Iniciando leitura: {self.nome_arquivo}...") 
             self.df = pd.read_csv(self.caminho_entrada)
             return True
         except FileNotFoundError:
-            print(f"Arquivo não encontrado: {self.caminho_entrada}")
+            logger.error(f"Arquivo NÃO encontrado: {self.caminho_entrada}")
             return False
         except Exception as e:
-            print(f"Erro ao ler: {e}")
+            logger.error(f"Erro crítico ao ler {self.nome_arquivo}: {e}")
             return False
 
     def transform(self):
-        """Limpeza básica aplicada a TODOS os arquivos."""
         if self.df is not None:
-            # 1. Remover duplicatas exatas
+            qtd_antes = len(self.df)
             self.df = self.df.drop_duplicates()
+            qtd_depois = len(self.df)
             
-            # 2. Remover espaços em branco de textos (strip)
+            if qtd_antes != qtd_depois:
+                logger.warning(f"[{self.nome_arquivo}] Duplicatas exatas removidas: {qtd_antes - qtd_depois}")
+            
             cols_texto = self.df.select_dtypes(include=['object']).columns
             self.df[cols_texto] = self.df[cols_texto].apply(lambda x: x.str.strip())
             
         return self.df
 
     def load(self):
-        """Salva o arquivo limpo na pasta de destino em PARQUET."""
         if self.df is not None:
-            # Garante que a pasta existe
-            os.makedirs(os.path.dirname(self.caminho_saida), exist_ok=True)
-            
-            # Salva em Parquet (preserva os tipos de data!)
-            self.df.to_parquet(self.caminho_saida, index=False)
-            print(f"[Salvo] {os.path.basename(self.caminho_saida)}")
+            try:
+                os.makedirs(os.path.dirname(self.caminho_saida), exist_ok=True)
+                self.df.to_parquet(self.caminho_saida, index=False)
+                logger.info(f"Sucesso: Arquivo salvo em {os.path.basename(self.caminho_saida)}")
+            except Exception as e:
+                logger.critical(f"Falha ao salvar o arquivo {self.nome_arquivo}: {e}")
 
 
 # 2. CLASSES ESPECIALISTAS 
 
-
 class OrdersCleaner(OlistBaseETL):
     def transform(self):
-        super().transform() # Roda limpeza básica
+        super().transform() 
         if self.df is not None:
-            print("    Convertendo datas de Pedidos...")
+            logger.info(f"[{self.nome_arquivo}] Convertendo colunas de datas...")
             cols = ['order_purchase_timestamp', 'order_approved_at', 
                     'order_delivered_carrier_date', 'order_delivered_customer_date', 
                     'order_estimated_delivery_date']
@@ -75,7 +96,7 @@ class OrderItemsCleaner(OlistBaseETL):
     def transform(self):
         super().transform()
         if self.df is not None:
-            print("    Convertendo data limite de envio...")
+            logger.info(f"[{self.nome_arquivo}] Convertendo data limite de envio...")
             self.df['shipping_limit_date'] = pd.to_datetime(self.df['shipping_limit_date'], errors='coerce')
         return self.df
 
@@ -83,12 +104,9 @@ class ReviewsCleaner(OlistBaseETL):
     def transform(self):
         super().transform()
         if self.df is not None:
-            print("    Limpando textos e datas de Reviews...")
-            # Datas
+            logger.info(f"[{self.nome_arquivo}] Limpando textos e convertendo datas...")
             self.df['review_creation_date'] = pd.to_datetime(self.df['review_creation_date'], errors='coerce')
             self.df['review_answer_timestamp'] = pd.to_datetime(self.df['review_answer_timestamp'], errors='coerce')
-            
-            # Limpeza de Texto (Remover 'Enter' nos comentários)
             self.df['review_comment_message'] = self.df['review_comment_message'].str.replace('\n', ' ', regex=False)
             self.df['review_comment_message'] = self.df['review_comment_message'].str.replace('\r', ' ', regex=False)
         return self.df
@@ -97,8 +115,37 @@ class ProductsCleaner(OlistBaseETL):
     def transform(self):
         super().transform()
         if self.df is not None:
-            print("    Tratando categorias nulas...")
+            logger.info(f"[{self.nome_arquivo}] Tratando categorias nulas...")
             self.df['product_category_name'] = self.df['product_category_name'].fillna('outros')
+        return self.df
+
+class GeolocationCleaner(OlistBaseETL):
+    def transform(self):
+        """
+        Limpeza de dados de geolocalização mantendo granularidade máxima.
+        
+        Nota: Este ETL preserva todos os registros únicos de geolocalização.
+        Para análises que requerem agregação por CEP (ex: centróide), 
+        consulte a análise exploratória em 'analise_geolocation_centroide.ipynb'
+        """
+        super().transform()
+        
+        if self.df is not None:
+            linhas_processadas = len(self.df)
+            ceps_unicos = self.df['geolocation_zip_code_prefix'].nunique()
+            
+            logger.info(f"[{self.nome_arquivo}] Processamento concluido.")
+            logger.info(f"  - Total de registros unicos: {linhas_processadas}")
+            logger.info(f"  - Total de CEPs distintos: {ceps_unicos}")
+            logger.info(f"  - Media de registros por CEP: {linhas_processadas / ceps_unicos:.2f}")
+            
+            # Validacao: Verificar integridade de coordenadas
+            nulos_lat = self.df['geolocation_lat'].isnull().sum()
+            nulos_lng = self.df['geolocation_lng'].isnull().sum()
+            
+            if nulos_lat > 0 or nulos_lng > 0:
+                logger.warning(f"  ALERTA: Valores nulos encontrados: lat={nulos_lat}, lng={nulos_lng}")
+            
         return self.df
 
 
@@ -109,43 +156,39 @@ MAPA_PIPELINE = {
     'olist_order_items_dataset.csv': OrderItemsCleaner,
     'olist_order_reviews_dataset.csv': ReviewsCleaner,
     'olist_products_dataset.csv': ProductsCleaner,
+    'olist_geolocation_dataset.csv': GeolocationCleaner, 
     'olist_customers_dataset.csv': OlistBaseETL,
-    'olist_geolocation_dataset.csv': OlistBaseETL,
     'olist_order_payments_dataset.csv': OlistBaseETL,
     'olist_sellers_dataset.csv': OlistBaseETL,
     'product_category_name_translation.csv': OlistBaseETL
 }
 
 def rodar_pipeline():
-    print("INICIANDO PIPELINE DE DADOS OLIST\n")
+    logger.info(">>> INICIANDO PIPELINE DE DADOS OLIST <<<")
     
     sucessos = 0
     falhas = 0
 
     for arquivo, ClasseETL in MAPA_PIPELINE.items():
-        # Caminho de Entrada
         input_path = os.path.join(PASTA_ORIGEM, arquivo)
-        
-        # Caminho de Saída (AGORA COM EXTENSÃO .parquet CORRETA)
         nome_parquet = f"clean_{arquivo}".replace('.csv', '.parquet')
         output_path = os.path.join(PASTA_DESTINO, nome_parquet)
         
-        # Instancia a classe
         etl = ClasseETL(input_path, output_path)
         
-        # Executa
         if etl.extract():
             etl.transform()
             etl.load()
             sucessos += 1
         else:
             falhas += 1
+            logger.warning(f"Falha no arquivo {arquivo}")
         
-        print("-" * 40)
+        logger.info("-" * 60)
 
-    print(f"\nFIM DO PROCESSO.")
-    print(f"Arquivos processados: {sucessos}")
-    print(f"Verifique a pasta: {PASTA_DESTINO}")
+    logger.info(">>> FIM DO PROCESSO <<<")
+    logger.info(f"Resumo: {sucessos} processados | {falhas} falhas.")
+    logger.info(f"Pasta de Saída: {PASTA_DESTINO}")
 
 if __name__ == "__main__":
     rodar_pipeline()

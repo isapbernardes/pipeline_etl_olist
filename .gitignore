@@ -5,3 +5,9 @@ dados_brutos/
 # Ignorar sistema
 __pycache__/
 .env
+
+# Ignorar notebooks de análise
+*.analise_geo.ipynb
+
+# Ignorar logs
+*.log

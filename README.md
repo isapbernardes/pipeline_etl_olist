@@ -1,77 +1,110 @@
-# 🛒 Olist ETL Pipeline: Engenharia de Dados com Python & POO
+# 🛒 Olist ETL Pipeline
 
+Pipeline de Engenharia de Dados para processamento e limpeza do dataset público de E-commerce da Olist.
 
-## 📌 Sobre o Projeto
+## 📌 Objetivo
 
-Este projeto é um pipeline de **Engenharia de Dados (ETL)** desenvolvido para processar o dataset público de E-commerce da **Olist**.
-
-O objetivo principal foi transformar dados brutos (CSV) em uma camada de dados confiáveis (Trusted/Parquet), garantindo consistência de tipagem, tratamento de nulos e qualidade de dados.
-
-O diferencial técnico deste projeto é a aplicação de **Programação Orientada a Objetos (POO)** para criar um código modular, escalável e fácil de manter.
+Transformar dados brutos (CSV) em uma camada de dados confiáveis (Trusted/Parquet) com qualidade garantida e observabilidade através de logs estruturados.
 
 ---
 
-## 🏗️ Arquitetura e Solução
+## 🏗️ Arquitetura
 
-O pipeline segue o fluxo clássico **ETL (Extract, Transform, Load)**:
-
-1.  **Extract (Extração):**
-    * Leitura dinâmica de múltiplos arquivos CSV.
-    * Tratamento de erros de leitura (`FileNotFound`).
-    
-
-2.  **Transform (Transformação):**
-    * **Limpeza Genérica:** Remoção de duplicatas e espaços em branco (strip) aplicada a todos os arquivos via Herança.
-    * **Limpeza Especializada:** Classes filhas aplicam regras de negócio específicas (ex: conversão de datas em `Orders`, limpeza de quebras de linha em `Reviews`).
-    * **Polimorfismo:** O orquestrador trata todos os arquivos da mesma forma, mas cada classe executa sua própria versão da transformação.
-
-3.  **Load (Carregamento):**
-    * Armazenamento dos dados processados em formato **Parquet**.
-    * **Por que Parquet?** Para garantir que os tipos de dados (especialmente datas) sejam preservados corretamente e reduzir o tamanho dos arquivos.
-
-4.  **Data Quality (Auditoria):**
-    * Script de validação automática que verifica tipagem, unicidade de chaves primárias e consistência lógica (ex: Data de Entrega não pode ser anterior à Data de Compra).
+```
+Dados Brutos (CSV)
+    ↓
+[EXTRACT] → Leitura com tratamento de erros
+    ↓
+[TRANSFORM] → Limpeza e conversão de tipos
+    ↓
+[LOAD] → Salvamento em Parquet
+    ↓
+Dados Confiáveis (Trusted)
+    ↓
+[AUDITORIA] → Validação de qualidade
+```
 
 ---
 
 ## 📂 Estrutura do Projeto
 
-```bash
-projeto-olist/
+```
+projeto_etl/
+├── src/pipeline.py              # Pipeline ETL principal
+├── auditoria_olist.py        # Script de validação de dados
+├── pipeline_olist.log            # Log de execução
+├── auditoria_olist.log       # Log de auditoria
+├── README.md                     # Este arquivo
+├── .gitignore
 │
-├── dados_brutos/          # (CSV) Arquivos originais do Kaggle
-├── Trusted/               # (Parquet) Dados limpos e processados (Inclusos neste repo)
-│
-├── src/
-│   ├── pipeline_olist.py  # Código Principal (ETL)
-│   └── auditoria_olist.py # Script de Teste de Qualidade
-│
-├── .gitignore             # Arquivos ignorados pelo Git
-├── README.md              # Documentação do projeto
-
-
-## 💻 Tecnologias Utilizadas
-
-* **Python 3.12**
-* **Pandas:** Manipulação e tratamento de dados.
-* **PyArrow/FastParquet:** Motores para gravação de arquivos Parquet.
-* **OS/Sys:** Manipulação de sistema de arquivos e encoding.
+├── dados_brutos/                 # Arquivos CSV originais
+├── Trusted/                      # Dados limpos em Parquet
+└── Derived/                      # Dados derivados (opcional)
+```
 
 ---
 
-## 🧠 Aprendizados e Conceitos Aplicados
+## 🚀 Como Usar
 
-Durante o desenvolvimento, foram aplicados conceitos fundamentais de Engenharia de Dados e Software:
+### Pré-requisitos
 
-* **Herança:** Criação de uma classe base `OlistBaseETL` para evitar repetição de código.
-* **Encapsulamento:** As regras de limpeza de cada tabela ficam isoladas em suas próprias classes.
-* **Armazenamento Otimizado:** Transição de CSV para Parquet para preservação de schema e redução de tamanho.
-* **Data Quality:** Implementação de testes automatizados para garantir a confiança e integridade nos dados.
+```bash
+pip install pandas openpyxl
+```
+
+### Executar
+
+1. **Pipeline de limpeza:**
+```bash
+python main_pipeline.py
+```
+
+2. **Auditoria de qualidade:**
+```bash
+python auditoria_qualidade.py
+```
+
+---
+
+## 📊 Pipeline (pipeline.py)
+
+Processa 9 tabelas com limpeza específica:
+
+- **Orders:** Conversão de timestamps para datetime
+- **Order Items:** Validação de preços e fretes
+- **Reviews:** Limpeza de quebras de linha
+- **Products:** Preenchimento de categorias nulas
+- **Geolocation:** Remoção de duplicatas
+- **Demais tabelas:** Limpeza padrão (duplicatas e espaços)
+
+Saída: Arquivos `.parquet` em `Trusted/`
+
+---
+
+## ✅ Auditoria (auditoria_olist.py)
+
+Valida os dados processados com checks por tabela:
+
+- **Orders:** Tipos de dados, lógica de negócio, chaves primárias
+- **Order Items:** Preços válidos, fretes não-negativos
+- **Products:** Categorias nulas, integridade de dados
+- **Geolocation:** Coordenadas válidas, limites geográficos
+
+Saída: Relatório de checks em `auditoria_qualidade.log`
+
+---
+
+## 🛠️ Tecnologias
+
+- Python 3.12+
+- Pandas
+- Logging (built-in)
+- Parquet (Snappy compression)
 
 ---
 
 ## 📞 Contato
 
-**Isadora** 🔗 [LinkedIn](https://www.linkedin.com/in/isadorapbernards/)  
-📧 [isadora.bernardes74@hotmail.com](mailto:isadora.bernardes74@hotmail.com)
-
+**Isadora**  
+🔗 [LinkedIn](https://www.linkedin.com/in/isadorapbernards/)  
+📧 isadora.bernardes74@hotmail.com
